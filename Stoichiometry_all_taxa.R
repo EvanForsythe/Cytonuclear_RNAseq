@@ -6,12 +6,13 @@ working_dir<-"/Users/esforsythe/Documents/Work/Bioinformatics/Polyploidy_project
 #Set working directory
 setwd(working_dir)
 
-##Load packages
+##Load packages needed for analysis/figure generation
+#Make list of all needed packages
 package_list<-c("dplyr", "plyr", "seqinr", "ggplot2", "gplots", "RColorBrewer", "ape", "insect", 
                 "phytools", "ggplot2", "grid", "treeio", "phangorn", "Biostrings", "reshape", 
                 "wesanderson", "matrixStats", "ggridges", "scales", "gridExtra", "reshape2")
 
-#Loop to check if package is installed and libraried
+#Loop to check if package is installed and 'libraried'
 for(p in 1:length(package_list)){
   if (!require(package_list[p], character.only = TRUE)) {
     install.packages(package_list[p], dependencies = TRUE)
@@ -32,6 +33,7 @@ cp_col<-"#44AA99"
 study_taxa<-c("Arabidopsis", "Arachis", "Chenopodium", "Gossypium")
 
 #Indicate whether the polyploid genome was originally split into two different files (one for each sub-genome)
+#This is used in an if statement below
 split_subgenomes<-c("TRUE", "FALSE", "FALSE", "TRUE")
 
 ###Notes about changes made to the input files
@@ -59,15 +61,17 @@ for(t in 1:length(study_taxa)){
   tpm_file<-read.table(file = paste(taxon_dir, "/Tpm.tbl", sep = ""), header = TRUE, sep = "\t")
   
   #Standardize the names in the tpm file
+  #make sure to manually check that the input files arranged consistently with this before reading in files
   names(tpm_file)<-c("target_id","Diploid1.1","Diploid1.2","Diploid1.3","Diploid1.4","Diploid1.5",
                      "Polyploid1.1","Polyploid1.2","Polyploid1.3","Polyploid1.4","Polyploid1.5",
                      "Diploid2.1","Diploid2.2","Diploid2.3","Diploid2.4","Diploid2.5")
   
   #Set columns as numeric
-  i<-2:16
+  i<-2:16 # indicate the columns to change
+  #apply the as numeric funciton to the columns
   tpm_file[,i] <- apply(tpm_file[,i], 2,function(x) as.numeric(as.character(x)))
   
-  #Remove the concatenated gene names to only retain the first one
+  #Remove the concatenated gene names to only retain the first one (for cases when two gene names are concatenated seperated by "__")
   tpm_file$target_id<-sapply(strsplit(as.character(tpm_file$target_id), "__"), `[`, 1)
   
   ##Get the outlier genes (genes with expression >1000 TPM that are not cp/mt encoded genes)
@@ -91,7 +95,7 @@ for(t in 1:length(study_taxa)){
   #This manual step needs to be done in order for the below code to run
   #A quick and dirty way to do that is run the loop once to generate the all_outlier_seqs.fasta file, manually make the outliers_to_remove.csv, and then run the whole loop again.
   
-  #read in csv file for bad outliers
+  #read in csv file for bad outliers (i.e outliers that we determined don't belong in the dataset)
   bad_genes<-paste(read.csv(file = paste(taxon_dir, "/outliers_to_remove.csv", sep = ""), header = TRUE)$Bad_outlier_genes)
   #Remove bad outliers
   tpm_file_outlier<-tpm_file[-grep(paste(bad_genes, collapse = "\\b|"), tpm_file$target_id),]
@@ -107,13 +111,14 @@ for(t in 1:length(study_taxa)){
   mt_temp_df<-tpm_file_outlier[grep("mt_", tpm_file_outlier$target_id),]
   nuc_temp_df<-tpm_file_outlier[-grep("cp_|mt_", tpm_file_outlier$target_id),]
   
+  #Combine back together (the order matters for plotting)
   tpm_file_outlier_temp<-rbind(
     cbind(data.frame(Genome=rep("Nuc", nrow(nuc_temp_df))), nuc_temp_df),
     cbind(data.frame(Genome=rep("Mt", nrow(mt_temp_df))), mt_temp_df),
     cbind(data.frame(Genome=rep("Cp", nrow(cp_temp_df))), cp_temp_df)
   )
   
-  #Add the averages accross replicates
+  #Add the averages across replicates
   tpm_file_outlier_full<-cbind(tpm_file_outlier_temp,
         data.frame(Diploid1_av=rowMeans(tpm_file_outlier_temp[,3:7], na.rm = TRUE), 
                     Polyploid_av=rowMeans(tpm_file_outlier_temp[,8:12], na.rm = TRUE),
@@ -123,11 +128,11 @@ for(t in 1:length(study_taxa)){
   #Write rescaled tpm files
   write.csv(tpm_file_outlier_full, file = paste0("Rescaled_tpm_outliersGone_", study_taxa[t], ".csv"), quote = FALSE, row.names = FALSE)
   
-  ## Generate date that do not include plastid genes
+  ## Generate data that do not include plastid genes
   #Remove plastid genes
   tpm_file_noCp<-subset(tpm_file_outlier_full, tpm_file_outlier_full$Genome!="Cp")
   
-  #Rescale the file back to TPMs
+  #Rescale the file back to TPMs (ie. columns sum to 1M)
   for(s in 3:ncol(tpm_file_noCp)){
     tpm_file_noCp[,s]<-tpm_file_noCp[,s]/(sum(tpm_file_noCp[,s])/1000000)
   }
@@ -139,7 +144,8 @@ for(t in 1:length(study_taxa)){
   for(x in 2:(ncol(tpm_file_outlier))){
     props_mat[(x-1),]<-c(names(tpm_file_outlier)[x],sum(nuc_temp_df[,x]), sum(cp_temp_df[,x]), sum(mt_temp_df[,x]))
   }
-
+  
+  #Create a new dataframe that seperates the Speices ID and the replicate ID
   Sum_genomes_df<-data.frame(Species=sapply(strsplit(as.character(props_mat[,1]), "\\."), `[`, 1),
                              Replicate=sapply(strsplit(as.character(props_mat[,1]), "\\."), `[`, 2),
                              Nuc_sum=as.numeric(paste(props_mat[,2])),
@@ -158,7 +164,7 @@ for(t in 1:length(study_taxa)){
   Sum_genomes_melt$variable<-relevel(Sum_genomes_melt$variable, ref = "Mt_sum")
   
   ##incorperate the quartet info
-  #Note that for our purpuses we want to sum each pair of homeologs together so that we can compare diploid to polyploids
+  #Note that for our purposes we want to sum each pair of homeologs together so that we can compare diploid to polyploids
   #Since the mapping for all species was done using the polyploid genome, we need to do this summing for diploids and polyploids
   
   #Ask whether the polyploid subgenomes are split or not (the naming conventions are slightly different depending)
@@ -293,12 +299,6 @@ for(t in 1:length(study_taxa)){
                                       )
   )
   
-  # #Reorder the levels of the Targeting
-  # tpm_file_quartets_organells_cymira$Targeting_short<-relevel(tpm_file_quartets_organells_cymira$Targeting_short, ref = "Dual-targeted")
-  # tpm_file_quartets_organells_cymira$Targeting_short<-relevel(tpm_file_quartets_organells_cymira$Targeting_short, ref = "Mitochondria-targeted")
-  # tpm_file_quartets_organells_cymira$Targeting_short<-relevel(tpm_file_quartets_organells_cymira$Targeting_short, ref = "Plastid-targeted")
-  # 
-
   ## Pull out the cytonuclear interactions
   #Read in cymira associations file
   #This file was generated manually. 
@@ -317,7 +317,7 @@ for(t in 1:length(study_taxa)){
     int_res_mat[i,]<-c(paste(levels(int_df$Cymira_association)[i]),
                        colMeans(keeper_nuc_df[,4:18]),
                        colMeans(keeper_og_df[,4:18])
-    )}
+    )}#end for loop
   
   #Convert to df
   int_res_df<-as.data.frame(int_res_mat)
@@ -331,7 +331,7 @@ for(t in 1:length(study_taxa)){
                        "org_Polyploid1.1","org_Polyploid1.2","org_Polyploid1.3","org_Polyploid1.4","org_Polyploid1.5",
                        "org_Diploid2.1","org_Diploid2.2","org_Diploid2.3","org_Diploid2.4","org_Diploid2.5")
   
-  #Shorten the long name (for aesthetics with plotting)
+  #Shorten the long name (for aesthetics while plotting)
   int_res_df$Cymira_category<-paste(int_res_df$Cymira_category)
   int_res_df$Cymira_category[which(int_res_df$Cymira_category=="mt-Transcription_and_Transcript_Maturation")]<-"mt-Transcription"
   int_res_df$Cymira_category[which(int_res_df$Cymira_category=="pt-Transcription_and_Transcript_Maturation")]<-"pt-Transcription"
@@ -366,7 +366,7 @@ for(t in 1:length(study_taxa)){
   #Add a species column
   cytonuc_ratios_melt_plus<-cbind(cytonuc_ratios_melt, data.frame(Species=sapply(strsplit(as.character(cytonuc_ratios_melt[,2]), "\\."), `[`, 1)))
 
-  #Rearrange to do the Havird and Sloan-like figure
+  #Rearrange to do a figure inspired by Havird and Sloan 2016
   melt_int<-melt(int_res_df, id.vars = c("Cymira_category"))
   
   #Add Genome and Species cols 
