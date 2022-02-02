@@ -1,12 +1,10 @@
 #Script for analyzing TPM data
 
-#Name working directory
+#Name working directory (change this to reflect your file system)
 working_dir<-"/Users/esforsythe/Documents/Work/Bioinformatics/Polyploidy_project/Stoicheometry/TPM_analysis/"
 
 #Set working directory
 setwd(working_dir)
-
-#devtools::install_github("karthik/wesanderson")
 
 ##Load packages
 package_list<-c("dplyr", "plyr", "seqinr", "ggplot2", "gplots", "RColorBrewer", "ape", "insect", 
@@ -21,7 +19,7 @@ for(p in 1:length(package_list)){
   }
 }
 
-#If installing and librarying the wesanderson color palette didnt work, do the following and then try again
+#If installing and library-ing the wesanderson color palette didnt work, do the following and then try again
 #devtools::install_github("karthik/wesanderson")
 
 #Set the colors for nuc/cp/mt
@@ -33,13 +31,12 @@ cp_col<-"#44AA99"
 #Set a string to identify each genus
 study_taxa<-c("Arabidopsis", "Arachis", "Chenopodium", "Gossypium")
 
-#Indicate whether the polyploid genome was originally split into two different files (on for each subgenome)
+#Indicate whether the polyploid genome was originally split into two different files (one for each sub-genome)
 split_subgenomes<-c("TRUE", "FALSE", "FALSE", "TRUE")
 
-###Some random notes about input files
+###Notes about changes made to the input files
 ##Arachis:
 #only has 4 replicates for the polyploid
-#The 'target_id' field  is different because some seq ids are concatinations of two seq id's. I need to figure out that the deal is with that.
 
 ##Gossypium:
 #AD1=Gossypium hirsutum, AD2=Gossypium barbadense
