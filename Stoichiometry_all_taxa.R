@@ -48,7 +48,6 @@ split_subgenomes<-c("TRUE", "FALSE", "FALSE", "TRUE")
 
 #All genera:
 #Diploid 1 = maternal; Diploid 2 = paternal
-
 #Loop through each genus
 for(t in 1:length(study_taxa)){
   #Set the directory for the species
@@ -272,6 +271,32 @@ for(t in 1:length(study_taxa)){
   tpm_file_quartets$Targeting_short<-relevel(tpm_file_quartets$Targeting_short, ref = "Mitochondria-targeted")
   tpm_file_quartets$Targeting_short<-relevel(tpm_file_quartets$Targeting_short, ref = "Plastid-targeted")
   
+  ## Create table with the proportion of the nuclear transcriptome that is N-pt and N-mt
+  #This is the proportion of the nuclear transcriptome composed of Npts, Nmts, and Dual-targ genes
+  Npts_only<-subset(tpm_file_quartets, tpm_file_quartets$Targeting_short=="Plastid-targeted")
+  Nmts_only<-subset(tpm_file_quartets, tpm_file_quartets$Targeting_short=="Mitochondria-targeted")
+  Duals_only<-subset(tpm_file_quartets, tpm_file_quartets$Targeting_short=="Dual-targeted")
+  Not_targ_only<-subset(tpm_file_quartets, tpm_file_quartets$Targeting_short=="Not-organelle-targeted")
+  
+  #Make empty matrix
+  org_targ_props<-matrix(, ncol = 5, nrow = length(4:18))
+  ticker<-1
+  #length(names(tpm_file_quartets)[4:18])
+  for(n in 4:18){
+    org_targ_props[ticker,1]<-names(tpm_file_quartets)[n]
+    org_targ_props[ticker,2]<-sum(Npts_only[,n])/1000000
+    org_targ_props[ticker,3]<-sum(Nmts_only[,n])/1000000
+    org_targ_props[ticker,4]<-sum(Duals_only[,n])/1000000
+    org_targ_props[ticker,5]<-sum(Not_targ_only[,n])/1000000
+    ticker<-ticker+1
+  }
+  #Clean up the table
+  org_targ_props_df<-as.data.frame(org_targ_props)
+  names(org_targ_props_df)<-c("Sample", "Npts", "Nmts", "Dual", "Not_org_targeted")
+  
+  #Write a table
+  write.table(org_targ_props_df, file = paste0("Org_targ_proportions_", study_taxa[t], ".csv"), quote = FALSE, row.names = FALSE, sep = ",")
+
   #Combine the quartet and organelle data and rescale (note that tpm_homeo_sums and tpm_file_outlier are both rescaled after outliers so they're still compatible with eachother)
   org_temp<-tpm_file_outlier[grep("cp_|mt_", tpm_file_outlier$target_id),]
   tpm_file_quartets_organells<-rbind(tpm_homeo_sums,
